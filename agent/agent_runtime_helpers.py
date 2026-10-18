@@ -682,6 +682,8 @@ def _merge_consecutive_users(messages: list[dict]) -> tuple[list[dict], int]:
             # A /steer row that ended the previous run is already persisted; merging the next
             # prompt into it would rewrite it in place and re-break replay parity.
             and prev.get("display_kind") != STEER_DISPLAY_KIND
+            # LCM summary rows (flagged _compressed_summary) are structural cache anchors; never merge them.
+            and not prev.get("_compressed_summary") and not msg.get("_compressed_summary")
             # Only merge plain-text content; leave multimodal (list or undecodable sentinel) content alone.
             and _plain_text(prev.get("content", "")) and _plain_text(msg.get("content", ""))
         ):
@@ -1267,7 +1269,11 @@ def drop_thinking_only_and_merge_users(
     for m in kept:
         prev = merged[-1] if merged else None
         content = _UNMERGEABLE
-        if prev is not None and prev.get("role") == "user" and m.get("role") == "user":
+        if (
+            prev is not None and prev.get("role") == "user" and m.get("role") == "user"
+            # LCM summary rows (flagged _compressed_summary) are structural cache anchors; never merge them.
+            and not prev.get("_compressed_summary") and not m.get("_compressed_summary")
+        ):
             content = _merge_user_content(prev.get("content", ""), m.get("content", ""))
         if content is _UNMERGEABLE:
             # Not a user pair, or an unknown content shape: append separately (the latter violates
